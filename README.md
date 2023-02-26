@@ -1,228 +1,134 @@
+# collection_template
+You can build a new repository for an Ansible Collection using this template by following [Creating a repository from a template](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template). This README.md contains recommended headings for your collection README.md, with comments describing what each section should contain. Once you have created your collection repository, delete this paragraph and the title above it from your README.md.
 
-Ansible has some great modules for VMware vCenter (especially in 2.5), but none for
-managing standalone ESXi hosts. There are many cases when full vCenter infrastructure
-is not required and web-based Host UI is quite enough for routine administrative tasks.
+# Foo Collection for Ansible
+<!-- Add CI and code coverage badges here. Samples included below. -->
+[![CI](https://github.com/ansible-collections/REPONAMEHERE/workflows/CI/badge.svg?event=push)](https://github.com/ansible-collections/REPONAMEHERE/actions) [![Codecov](https://img.shields.io/codecov/c/github/ansible-collections/REPONAMEHERE)](https://codecov.io/gh/ansible-collections/REPONAMEHERE)
 
-Modules, roles and playbooks presented here allow to manage standalone ESXi hosts
-(although hosts under vCenter are ok too) with direct SSH connection, usually with
-transparent key-based authentication.
+<!-- Describe the collection and why a user would want to use it. What does the collection do? -->
 
-# Contents of repository
+## Code of Conduct
 
-- role to configure ESXi host (`roles/hostconf_esxi`)
-- playbooks to deploy new VMs to ESXi host (in `vm_deploy/`)
-    - by uploading (template) VM from some other host (`upload_clone`)
-    - or by cloning local VM (`clone_local`)
-- modules used by role and deployment playbook
-    - to gather VM facts from ESXi host (`esxi_vm_info`)
-    - to manage autostart of VMs (`esxi_autostart`)
-    - to install or update custom VIBs (`esxi_vib`)
-- some helper filter plugins to simplify working with ESXi shell commands output
-    - `split`: split string into a list
-    - `todict`: convert a list of records into a dictionary, using specified field as a key
-- example playbook to update ESXi host with offline bundle (`update_esxi.yaml`)
-- helper script to get vault pass from macOS keychain (`get_vault_pass.esxi.sh`)
+We follow the [Ansible Code of Conduct](https://docs.ansible.com/ansible/devel/community/code_of_conduct.html) in all our interactions within this project.
 
-# `hostconf-esxi` role
+If you encounter abusive behavior, please refer to the [policy violations](https://docs.ansible.com/ansible/devel/community/code_of_conduct.html#policy-violations) section of the Code for information on how to raise a complaint.
 
-This role takes care of many aspects of standalone ESXi server configuration like
+## Communication
 
-- ESXi license key (if set)
-- host name, DNS servers
-- NTP servers, enable NTP client, set time
-- users
-    - create missed, remove extra ones
-    - assign random passwords to new users (and store in `creds/`)
-    - make SSH keys persist across reboots
-    - grant DCUI rights
-- portgroups
-    - create missed, remove extra
-    - assign specified tags
-- block BPDUs from guests
-- create vMotion interface (off by default, see `create_vmotion_iface` in role defaults)
-- datastores
-    - partition specified devices if required
-    - create missed datastores
-    - rename empty ones with wrong names
-- autostart for specified VMs (optionally disabling it for all others)
-- logging to syslog server; lower `vpxa` and other noisy components logging level from
-  default `verbose` to `info`
-- certificates for Host UI and SSL communication (if present)
-- install or update specified VIBs
-- [disable SLP](https://kb.vmware.com/s/article/76372), dangerous and mostly useless in smaller 
-  deployments (set `disable_slpd: true` in host vars to turn it off)
+<!--List available communication channels. In addition to channels specific to your collection, we also recommend to use the following ones.-->
 
-Only requirement is correctly configured network (especially uplinks) and reachability
-over ssh with root password. ESXi must be reasonably recent (6.0+, although some
-newer versions of 5.5 have working python 2.7 too).
+We announce releases and important changes through Ansible's [The Bullhorn newsletter](https://github.com/ansible/community/wiki/News#the-bullhorn). Be sure you are [subscribed](https://eepurl.com/gZmiEP).
 
-## General configuration
-- `ansible.cfg`: specify remote user, inventory path etc; specify vault pass method
-  if using one for certificate private key encryption.
-- `group_vars/all.yaml`: specify global parameters like NTP and syslog servers there
-- `group_vars/<site>.yaml`: set specific params for each `<site>` in inventory
-- `host_vars/<host>.yaml`: override global and group values with e.g. host-specific
-  users list or datastore config
-- put public keys for users into `roles/hostconf-esxi/files/id_rsa.<user>@<keyname>.pub`
-  for referencing them later in user list `host_vars` or `group_vars`
+Join us in the `#ansible` (general use questions and support), `#ansible-community` (community and collection development questions), and other [IRC channels](https://docs.ansible.com/ansible/devel/community/communication.html#irc-channels).
 
-## Typical variables for `(group|host)_vars`
-- serial number to assign, usually set in global `group_vars/all.yaml`; does not get
-  changed if not set
+We take part in the global quarterly [Ansible Contributor Summit](https://github.com/ansible/community/wiki/Contributor-Summit) virtually or in-person. Track [The Bullhorn newsletter](https://eepurl.com/gZmiEP) and join us.
 
-        esxi_serial: "XXXXX-XXXXX-XXXX-XXXXX-XXXXX"
+For more information about communication, refer to the [Ansible Communication guide](https://docs.ansible.com/ansible/devel/community/communication.html).
 
-- general network environment, usually set in `group_vars/<site>.yaml`
+## Contributing to this collection
 
-        dns_domain: "m0.maxidom.ru"
+<!--Describe how the community can contribute to your collection. At a minimum, fill up and include the CONTRIBUTING.md file containing how and where users can create issues to report problems or request features for this collection. List contribution requirements, including preferred workflows and necessary testing, so you can benefit from community PRs. If you are following general Ansible contributor guidelines, you can link to - [Ansible Community Guide](https://docs.ansible.com/ansible/devel/community/index.html). List the current maintainers (contributors with write or higher access to the repository). The following can be included:-->
 
-        name_servers:
-          - 10.0.128.1
-          - 10.0.128.2
+The content of this collection is made by people like you, a community of individuals collaborating on making the world better through developing automation software.
 
-        ntp_servers:
-          - 10.1.131.1
-          - 10.1.131.2
+We are actively accepting new contributors.
 
-        # defaults: "log." + dns_domain
-        # syslog_host: log.m0.maxidom.ru
+Any kind of contribution is very welcome.
 
-- user configuration: those users are created (if not present) and assigned random
-  passwords (printed out and stored in `creds/<user>.<host>.pass.out`), have ssh keys assigned to them (persistently) and restricted to specified hosts (plus global list
-  in `permit_ssh_from`), are granted administrative rights and access to the console
+You don't know how to start? Refer to our [contribution guide](CONTRIBUTING.md)!
 
-        esxi_local_users:
-        "<user>":
-          desc: "<user description>""
-          pubkeys:
-            - name:  "<keyname>"
-              hosts: "1.2.3.4,some-host.com"
+We use the following guidelines:
 
-    users that are not in this list (except root) are removed from host, so be careful.
-- network configuration: portgroups list in `esxi_portgroups` are exhaustive, i.e. those
-  and only those portgroups (with exactly matched tags) should be present oh host after
-  playbook run (missed are created, wrong names are fixed, extra are removed if not used)
+* [CONTRIBUTING.md](CONTRIBUTING.md)
+* [REVIEW_CHECKLIST.md](REVIEW_CHECKLIST.md)
+* [Ansible Community Guide](https://docs.ansible.com/ansible/latest/community/index.html)
+* [Ansible Development Guide](https://docs.ansible.com/ansible/devel/dev_guide/index.html)
+* [Ansible Collection Development Guide](https://docs.ansible.com/ansible/devel/dev_guide/developing_collections.html#contributing-to-collections)
 
-        esxi_portgroups:
-          all-tagged: { tag: 4095 }
-          adm-srv:    { tag:  210 }
-          srv-netinf: { tag:  131 }
-          pvt-netinf: { tag:  199 }
-          # could also specify vSwitch (default is vSwitch0)
-          adm-stor:   { tag:   21, vswitch: vSwitch1 }
+## Collection maintenance
 
-- datastore configuration: datastores would be created on those devices if missed and
-  `create_datastores` is set; existent datastores would be renamed to match specified
-  name if `rename_datastores` is set and they are empty
+The current maintainers are listed in the [MAINTAINERS](MAINTAINERS) file. If you have questions or need help, feel free to mention them in the proposals.
 
-        local_datastores:
-          "vmhba0:C0:T0:L1": "nest-test-sys"
-          "vmhba0:C0:T0:L2": "nest-test-apps"
+To learn how to maintain / become a maintainer of this collection, refer to the [Maintainer guidelines](MAINTAINING.md).
 
-- VIBs to install or update (like latest esx-ui host client fling)
+## Governance
 
-        vib_list:
-          - name: esx-ui
-            url: "http://www-distr.m1.maxidom.ru/suse_distr/iso/esxui-signed-6360286.vib"
+<!--Describe how the collection is governed. Here can be the following text:-->
 
-- autostart configuration: listed VMs are added to esxi auto-start list, in specified order
-  if order is present, else just randomly; if `autostart_only_listed` is set, only those VMs
-  will be autostarted on host with extra VMs removed from autostart
+The process of decision making in this collection is based on discussing and finding consensus among participants.
 
-        vms_to_autostart:
-          eagle-m0:
-            order: 1
-          hawk-m0:
-            order: 2
-          falcon-u1:
+Every voice is important. If you have something on your mind, create an issue or dedicated discussion and let's discuss it!
 
-## Host-specific configuration
-- add host into corresponding group in `inventory.esxi`
-- set custom certificate for host
-    - put certificate into `files/<host>.rui.crt`,
-    - put key into `files/<host>.key.vault` (and encrypt vault)
-- override any group vars in `host_vars/hostname.yaml`
+## Tested with Ansible
 
-## Initial host setup and later convergence runs
+<!-- List the versions of Ansible the collection has been tested with. Must match what is in galaxy.yml. -->
 
-For the initial config only the "root" user is available, so run playbook like this:
+## External requirements
 
-      ansible-playbook all.yaml -l new-host -u root -k --tags hostconf --diff
+<!-- List any external resources the collection depends on, for example minimum versions of an OS, libraries, or utilities. Do not list other Ansible collections here. -->
 
-After local users are configured (and ssh key auth is in place), just use `remote_user`
-from `ansible.cfg` and run it like
+### Supported connections
+<!-- Optional. If your collection supports only specific connection types (such as HTTPAPI, netconf, or others), list them here. -->
 
-      ansible-playbook all.yaml -l host-or-group --tags hostconf --diff
+## Included content
 
-## Notes
-- only one vSwitch (`vSwitch0`) is currently supported
-- password policy checks (introduced in 6.5) are turned off to allow for truly random
-  passwords (those are sometimes miss one of the character classes).
+<!-- Galaxy will eventually list the module docs within the UI, but until that is ready, you may need to either describe your plugins etc here, or point to an external docsite to cover that information. -->
 
-# VM deployment playbooks
+## Using this collection
 
-There are two playbooks in `vm_deploy/` subdir
+<!--Include some quick examples that cover the most common use cases for your collection content. It can include the following examples of installation and upgrade (change NAMESPACE.COLLECTION_NAME correspondingly):-->
 
-- first (`upload_clone`) is for copying template VM from source host to new target
-- second (`clone_local`) is for making custom clones of local template VM
+### Installing the Collection from Ansible Galaxy
 
-See playbook source and comments at the top for a list if parameters, some are
-mentioned below.
+Before using this collection, you need to install it with the Ansible Galaxy command-line tool:
+```bash
+ansible-galaxy collection install NAMESPACE.COLLECTION_NAME
+```
 
-## Assumptions about environment
+You can also include it in a `requirements.yml` file and install it with `ansible-galaxy collection install -r requirements.yml`, using the format:
+```yaml
+---
+collections:
+  - name: NAMESPACE.COLLECTION_NAME
+```
 
-- ansible 2.3+ (2.2 "replace" is not compatible with python 3 on ESXi)
-- local modules `netaddr` and `dnspython`
-- clone source must be powered off
-- for VM customization like setting IPs etc, [ovfconf](https://github.com/veksh/ovfconf)
-  must be configured on clone source VM (to take advantage of passing OVF params to VM)
+Note that if you install the collection from Ansible Galaxy, it will not be upgraded automatically when you upgrade the `ansible` package. To upgrade the collection to the latest available version, run the following command:
+```bash
+ansible-galaxy collection install NAMESPACE.COLLECTION_NAME --upgrade
+```
 
-## `upload_clone`
+You can also install a specific version of the collection, for example, if you need to downgrade when something is broken in the latest version (please report an issue in this repository). Use the following syntax to install version `0.1.0`:
 
-This playbooks is mostly used to upload initial "template" VM to target host (to be,
-in turn, template for further local cloning). Source of template VM is usually at
-another ESXi host, and there are 3 modes of copy:
+```bash
+ansible-galaxy collection install NAMESPACE.COLLECTION_NAME:==0.1.0
+```
 
-- direct "pull" SCP: destination host is SCP'ing VM files from source; authorization
-  is key-based with agent forwarding, so both hosts must have current Ansible user
-  configured and destination host must be in allowed hosts list for this user
-- direct "push" SCP: source host is SCP'ing VM files to destination, exactly as above
-  (if e.g. firewall is more permissive in that direction)
-- slow copy via current hosts: download VM files from source to temp dir first (with
-  Ansible "copy" module; rather fast if file is already staged there), then upload it
-  to destination hosts (must have enough space in "tmp" for that, see `ansible-deploy.cfg`
-  for tmp configuration)
+See [Ansible Using collections](https://docs.ansible.com/ansible/devel/user_guide/collections_using.html) for more details.
 
-There are no options for customization there, only for src and dst params like datastore,
-and usual invocation looks like
+## Release notes
 
-      ansible-playbook upload_clone.yaml -l nest2-k1 \
-        -e 'src_vm_name=phoenix11-1-k1 src_vm_vol=nest1-sys src_vm_server=nest1-k1' \
-        -e 'dst_vm_name=phoenix11-2-k1' \
-        -e 'direct_scp=true'
+See the [changelog](https://github.com/ansible-collections/REPONAMEHERE/tree/main/CHANGELOG.rst).
 
-## `clone_local`
+## Roadmap
 
-This playbook is used to produce new VM from local template source, optionally customize
-parameters like datastore, network and disks, and optionally power it on. Invocation
-to create new machine (with additional network card and disk) and power it on looks like
+<!-- Optional. Include the roadmap for this collection, and the proposed release/versioning strategy so users can anticipate the upgrade/update cycle. -->
 
-    ansible-playbook clone_local.yaml -l nest1-mf1 -e 'vm_name=files-mf1-vm \
-      vm_desc="samba file server" vm_net2=srv-smb vm_disk2=100G' \
-      -e 'do_power_on=true'
+## More information
 
-To simplify cloning, it is better to
+<!-- List out where the user can find additional information, such as working group meeting times, slack/IRC channels, or documentation for the product this collection automates. At a minimum, link to: -->
 
-- specify local clone source vm in ESXi host `host_vars` (as `src_vm_name`)
-- already have new machine's name in DNS (so IP is determined automatically)
-- have [ovfconf](https://github.com/veksh/ovfconf) configured in source (template)
-  VM, as OVF is used to pass network config there (DHCP server would be ok too)
+- [Ansible Collection overview](https://github.com/ansible-collections/overview)
+- [Ansible User guide](https://docs.ansible.com/ansible/devel/user_guide/index.html)
+- [Ansible Developer guide](https://docs.ansible.com/ansible/devel/dev_guide/index.html)
+- [Ansible Collections Checklist](https://github.com/ansible-collections/overview/blob/main/collection_requirements.rst)
+- [Ansible Community code of conduct](https://docs.ansible.com/ansible/devel/community/code_of_conduct.html)
+- [The Bullhorn (the Ansible Contributor newsletter)](https://us19.campaign-archive.com/home/?u=56d874e027110e35dea0e03c1&id=d6635f5420)
+- [News for Maintainers](https://github.com/ansible-collections/news-for-maintainers)
 
-# Modules
+## Licensing
 
-Modules (`library/`) are documented with usual Ansible docs. They could be used
-stand-alone, like
+<!-- Include the appropriate license information here and a pointer to the full licensing details. If the collection contains modules migrated from the ansible/ansible repo, you must use the same license that existed in the ansible/ansible repo. See the GNU license example below. -->
 
-      ansible -m esxi_vm_list -a 'get_power_state=true get_start_state=true' esxi-name
+GNU General Public License v3.0 or later.
 
-to get a list of host VMs together with autostart state and current run state
+See [LICENSE](https://www.gnu.org/licenses/gpl-3.0.txt) to see the full text.
