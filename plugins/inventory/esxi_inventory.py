@@ -33,8 +33,8 @@ DOCUMENTATION = '''
     password:
       description: Password for provided user
       required: true
-      type: string
-      default: none
+      env:
+        - name: ESXI_PASSWORD
   notes:
     - This currently only returns VM's that are powered on
 '''
