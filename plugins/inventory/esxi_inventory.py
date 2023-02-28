@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable, Cacheable
 from ansible.errors import AnsibleError
 from paramiko import SSHClient
@@ -6,7 +8,13 @@ import re
 
 DOCUMENTATION = '''
   name: community.esxi.esxi_inventory
+  author:
+    - David Danielsson (@djdanielsson)
   plugin_type: inventory
+  requirements:
+    - ssh enabled on ESXi server
+    - paramiko python package
+  version_added: "0.1.0"
   short_description: Generate inventory from ESXi
   description: Generate inventory from powered on VM's running on ESXi
   extends_documentation_fragment:
@@ -27,6 +35,8 @@ DOCUMENTATION = '''
       required: true
       type: string
       default: none
+  notes:
+    - This currently only returns VM's that are powered on
 '''
 
 EXAMPLES = '''
@@ -81,6 +91,7 @@ def _populate(self, params):
     self.inventory.set_variable(hostname, 'guest_family', guestfamily)
     self.inventory.set_variable(hostname, 'guest_name', guestid)
     self.inventory.set_variable(hostname, 'vm_state', geststate)
+    self.inventory.set_variable(hostname, 'esxi_uid', id)
 
   client.close()
 
