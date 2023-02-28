@@ -5,7 +5,7 @@ import paramiko
 import re
 
 DOCUMENTATION = '''
-  name: community.esxi.inventory
+  name: community.esxi.esxi_inventory
   plugin_type: inventory
   short_description: Generate inventory from ESXi
   description: Generate inventory from powered on VM's running on ESXi
@@ -31,7 +31,7 @@ DOCUMENTATION = '''
 
 EXAMPLES = '''
 # Minimal example
-plugin: community.esxi.inventory
+plugin: community.esxi.esxi_inventory
 hostname: 'hypervisor.example.com'
 username: 'root'
 password: 'Password'
@@ -85,7 +85,7 @@ def _populate(self, params):
   client.close()
 
 class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
-  NAME = 'community.esxi.inventory'
+  NAME = 'community.esxi.esxi_inventory'
 
   def verify_file(self, path):
     # return true/false if this is possibly a valid file for this plugin to consume
