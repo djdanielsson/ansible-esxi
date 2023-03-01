@@ -35,6 +35,18 @@ DOCUMENTATION = '''
       required: true
       env:
         - name: ESXI_PASSWORD
+    group_by:
+      description:
+        - Keys used to create groups from.
+      type: list
+      elements: str
+      required: false
+      choices:
+        - guestfamily
+        - guestid
+        - geststate
+        - notes
+      default: []
   notes:
     - This currently only returns VM's that are powered on
 '''
@@ -44,7 +56,16 @@ EXAMPLES = '''
 plugin: community.esxi.esxi_inventory
 hostname: 'hypervisor.example.com'
 username: 'root'
-password: 'Password'
+
+# Fully loaded
+plugin: community.esxi.esxi_inventory
+hostname: 'hypervisor.example.com'
+username: 'root'
+group_by:
+  - guestfamily
+  - guestid
+  - geststate
+  - notes
 '''
 
 def _populate(self, params):
@@ -76,13 +97,22 @@ def _populate(self, params):
       print("exec command on %s command" % _command)
       print("exec command issue %s " % vminfo)
 
+    _summary = 'vim-cmd vmsvc/get.summary ' + id
+    try:
+      _stdin, _stdout, _stderr= client.exec_command(_summary)
+      vmsummary = _stdout.read().decode()
+    except:
+      print("exec command on %s command" % _summary)
+      print("exec command issue %s " % vmsummary)
+
     #print(vminfo)
     try:
       hostname    = (re.search('hostName\s=\s\"(.*)\",', vminfo)).group(1)
-      ipaddress   = (re.search('ipAddress\s=\s\"(([\d]{1,3}.){4})\",', vminfo)).group(1)
+      ipaddress   = (re.search('ipAddress\s=\s\"(([\d]{1,3}.){4})\",', vminfo)).group(1) # or "")
       guestfamily = (re.search('guestFamily(.*)\s=\s\"(.*)\",', vminfo)).group(2)
       guestid     = (re.search('guestId(.*)\s=\s\"(.*)\",', vminfo)).group(2)
-      geststate   = (re.search('guestState\s=\s\"(.*)\",', vminfo)).group(1)
+      geststate   = (re.search('guestState\s=\s\"(.*)\",', vminfo)).group(1) # or ((re.search('powerState\s=\s\"(.*)\",', vminfo)).group(1))
+      notes       = ((re.search('annotation\s=\s\"(.*)\",', vmsummary)).group(1) or "")
     except:
       ignoreError = True
 
@@ -92,6 +122,33 @@ def _populate(self, params):
     self.inventory.set_variable(hostname, 'guest_name', guestid)
     self.inventory.set_variable(hostname, 'vm_state', geststate)
     self.inventory.set_variable(hostname, 'esxi_uid', id)
+    self.inventory.set_variable(hostname, 'notes', notes)
+
+    if params['group_by'] != []:
+      if 'guestfamily' in params['group_by']:
+        if guestfamily != "":
+          self.inventory.add_group(guestfamily)
+          self.inventory.add_child('all', guestfamily)
+          self.inventory.add_child(guestfamily, hostname)
+
+      if 'guestid' in params['group_by']:
+        if guestid != "":
+          self.inventory.add_group(guestid)
+          self.inventory.add_child('all', guestid)
+          self.inventory.add_child(guestid, hostname)
+
+      # commenting out because currently only getting running VMs
+      # if 'geststate' in params['group_by']:
+      #   if geststate != "":
+      #     self.inventory.add_group(geststate)
+      #     self.inventory.add_child('all', geststate)
+      #     self.inventory.add_child(geststate, hostname)
+
+      if 'notes' in params['group_by']:
+        if notes != "":
+          self.inventory.add_group(notes)
+          self.inventory.add_child('all', notes)
+          self.inventory.add_child(notes, hostname)
 
   client.close()
 
@@ -117,5 +174,6 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
     params['hostname'] = self.get_option('hostname')
     params['username'] = self.get_option('username')
     params['password'] = self.get_option('password')
+    params['group_by'] = self.get_option('group_by')
 
     results = _populate(self, params)
