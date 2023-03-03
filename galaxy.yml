@@ -13,8 +13,8 @@ tags:
 # tags so people can search for collections https://galaxy.ansible.com/search
 # tags are all lower-case, no spaces, no dashes.
   - hypervisor
-  - ESXi
-  - VMware
+  - esxi
+  - vmware
 repository: https://github.com/djdanielsson/ansible-esxi
 #documentation: https://github.com/ansible-collection-migration/ansible-esxi/tree/main/docs
 homepage: https://github.com/djdanielsson/ansible-esxi
