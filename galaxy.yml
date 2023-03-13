@@ -2,7 +2,7 @@
 ---
 namespace: community
 name: esxi
-version: 0.1.0
+version: 0.1.1
 readme: README.md
 authors:
   - David Danielsson (github.com/djdanielsson)
