@@ -78,7 +78,7 @@ def _populate(self, params):
     print("connection issue")
 
   try:
-    stdin_, stdout_, stderr_= client.exec_command('vim-cmd vmsvc/getallvms | grep -v Vmid | awk \'{ print $1 }\'')
+    stdin_, stdout_, stderr_= client.exec_command('vim-cmd vmsvc/getallvms | awk \'{ print $1 }\' | grep -v Vmid')
     ids = stdout_.read().decode().strip()
     _stderr = stderr_.read().decode()
   except:
@@ -88,6 +88,8 @@ def _populate(self, params):
 
   # print(ids)
   for id in ids.splitlines():
+    vminfo = ''
+    vmsummary = ''
     # print(id)
     _command = 'vim-cmd vmsvc/get.guest ' + id
     try:
@@ -106,6 +108,12 @@ def _populate(self, params):
       print("exec command issue %s " % vmsummary)
 
     #print(vminfo)
+    # hostname    = ''
+    # ipaddress   = ''
+    # guestfamily = ''
+    # guestid     = ''
+    # geststate   = ''
+    # notes       = ''
     try:
       hostname    = (re.search('hostName\s=\s\"(.*)\",', vminfo)).group(1)
       ipaddress   = (re.search('ipAddress\s=\s\"(([\d]{1,3}.){4})\",', vminfo)).group(1) # or "")
@@ -175,5 +183,12 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
     params['username'] = self.get_option('username')
     params['password'] = self.get_option('password')
     params['group_by'] = self.get_option('group_by')
+
+    if params['hostname'] == "":
+      raise AnsibleError("Missing required value 'hostname'")
+    if params['username'] == "":
+      raise AnsibleError("Missing required value 'username'")
+    if params['password'] == "":
+      raise AnsibleError("Missing required value 'password'")
 
     results = _populate(self, params)
